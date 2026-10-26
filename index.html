@@ -369,7 +369,7 @@
 <main id="top">
 
   <!-- ② 히어로: 핵심 메시지 + 1차 CTA -->
-  <section class="hero">
+  <section class="hero" id="hero">
     <div class="container">
       <div class="reveal">
         <span class="channel-badge" id="channelBadge">👋 처음 오셨군요! 반가워요</span>
@@ -926,20 +926,43 @@
       const id = new window.amplitude.Identify();
       id.set('utm_source', source || 'direct');
       window.amplitude.identify(id);
+      ampReady = true;
+      ampQueue.splice(0).forEach(([n, p]) => window.amplitude.track(n, p)); // 로드 전 이벤트 전송
     };
     document.head.appendChild(amp);
   }
 
+  let ampReady = false;
+  const ampQueue = [];
+
   function track(name, data = {}) {
     const payload = { event: name, utm_source: source || 'direct', ...data };
-    if (window.amplitude) window.amplitude.track(name, payload);
+    if (AMPLITUDE_API_KEY) (ampReady ? window.amplitude.track(name, payload) : ampQueue.push([name, payload]));
     if (window.gtag) window.gtag('event', name, payload);
     if (window.fbq) window.fbq('trackCustom', name, payload);
     console.log('[track]', payload);
   }
+  // CTA 공통 속성: cta(버튼 ID), cta_text(버튼 문구), section(위치)
+  const ctaProps = el => ({
+    cta: el.dataset.cta,
+    cta_text: el.textContent.trim().replace(/\s+/g, ' '),
+    section: (el.closest('section, header, footer, .sticky-cta') || {}).id ||
+             (el.closest('.sticky-cta') ? 'sticky' : el.closest('header') ? 'header' : 'unknown')
+  });
+
+  // 클릭 수집
   document.querySelectorAll('[data-cta]').forEach(el =>
-    el.addEventListener('click', () => track('cta_click', { cta: el.dataset.cta }))
+    el.addEventListener('click', () => track('cta_click', ctaProps(el)))
   );
+
+  // 노출 수집: 버튼이 50% 이상 화면에 보이면 페이지 로드당 1회 전송
+  const ctaIO = new IntersectionObserver(entries => entries.forEach(en => {
+    if (en.isIntersecting) {
+      track('cta_impression', ctaProps(en.target));
+      ctaIO.unobserve(en.target);
+    }
+  }), { threshold: 0.5 });
+  document.querySelectorAll('[data-cta]').forEach(el => ctaIO.observe(el));
 
   // ===== 8. 스크롤 등장 애니메이션 =====
   const io = new IntersectionObserver(entries => entries.forEach(en => {
