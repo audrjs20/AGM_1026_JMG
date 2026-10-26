@@ -916,8 +916,23 @@
   });
 
   // ===== 7. CTA 클릭 추적 (GA4 / 픽셀 연동 지점) =====
+  // Amplitude 프로젝트 ID: 887071 (API 키는 브라우저에 공개되는 값 / 비밀 키는 .env에만 보관)
+  const AMPLITUDE_API_KEY = '59c45013c4f0f1033e677f0520110b13';
+  if (AMPLITUDE_API_KEY) {
+    const amp = document.createElement('script');
+    amp.src = `https://cdn.amplitude.com/script/${AMPLITUDE_API_KEY}.js`;
+    amp.onload = () => {
+      window.amplitude.init(AMPLITUDE_API_KEY, { autocapture: true });
+      const id = new window.amplitude.Identify();
+      id.set('utm_source', source || 'direct');
+      window.amplitude.identify(id);
+    };
+    document.head.appendChild(amp);
+  }
+
   function track(name, data = {}) {
     const payload = { event: name, utm_source: source || 'direct', ...data };
+    if (window.amplitude) window.amplitude.track(name, payload);
     if (window.gtag) window.gtag('event', name, payload);
     if (window.fbq) window.fbq('trackCustom', name, payload);
     console.log('[track]', payload);
